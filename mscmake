@@ -1,0 +1,1377 @@
+#       Program:        mscmake                      15 May 1989
+#       Author:         Andrew H. Derbyshire
+#                       Kendra Electronic Wonderworks
+#                       P. O. Box 132
+#                       Arlington, MA 02174
+#       Function:       Build UUPC/extended from source files
+#       Processor:      Microsoft nmake
+#       External files: MASM            (8088 Assembler)
+#                       CL              (Microsoft C 6.0 compiler)
+#                       LINK or         (MS-DOS Linker)
+#                       LINK386         (OS/2 Linker)
+#                       Input source files.
+#
+#       Copyright (c) 1989-1993 by Kendra Electronic Wonderworks;
+#       all rights reserved except those explicitly granted by
+#       the UUPC/extended license.
+#
+#       nmk /nologo /s /f mscmake prodr
+#       nmake /nologo /s /f mscmake prodp
+#       nmake /nologo /s /f mscmake prodn
+#
+#       $Id: mscmake 1.37 1993/10/04 16:42:24 ahd Exp $
+#
+#       $Log: mscmake $
+#         Revision 1.37  1993/10/04  16:42:24  ahd
+#         Correct directory archives are created in
+#
+#         Revision 1.36  1993/10/04  15:40:46  ahd
+#         Revise makefile to generate true release names
+#         Include 00readme.now in all archives
+#
+#         Revision 1.35  1993/10/03  20:36:32  ahd
+#         Force NUL as file name linkinh
+#
+#         Revision 1.34  1993/10/02  23:11:57  dmwatt
+#         Add TCP/IP error messages
+#
+#         Revision 1.33  1993/10/02  19:05:48  ahd
+#         Change stack size on DOS modules
+#         Use full path name for files to aid debugging
+#
+#         Revision 1.32  1993/10/01  02:07:43  dmwatt
+#         Add new prtynt.obj to parallel OS/2 version
+#         Delete unneeded library paths
+#
+#         Revision 1.31  1993/09/29  04:47:26  ahd
+#         Add unique signal handler for suspend port
+#
+#         Revision 1.30  1993/09/27  00:42:15  ahd
+#         Add suspend of serial ports by K. Rommel
+#
+#         Revision 1.29  1993/09/20  04:34:28  ahd
+#         TCP/IP support from Dave Watt
+#         't' protocol support
+#         Disable debug output when installing
+#
+#         Revision 1.28  1993/09/02  12:07:45  ahd
+#         HPFS support
+#
+#         Revision 1.27  1993/08/26  04:59:46  ahd
+#         Compile without WINT variable, other NT corrections on kendra
+#
+#         Revision 1.26  1993/08/02  03:21:04  ahd
+#         Rename zip files
+#
+#         Revision 1.25  1993/07/31  16:19:27  ahd
+#         Break trumpet into unique module
+#         General clean up of unneeded definitions
+#         Always use version header
+#
+#         Revision 1.24  1993/07/20  21:43:58  ahd
+#         Use only one OS/2 definitions file (per Kae Uwe Rommel)
+#
+#         Revision 1.23  1993/06/15  12:17:34  ahd
+#         Rename commfifo.asm to comm.asm
+#
+#         Revision 1.22  1993/06/06  15:03:35  ahd
+#         Move to release 1.12A
+#
+#         Revision 1.21  1993/05/30  15:25:11  ahd
+#         Add INT14 driver support
+#
+#         Revision 1.20  1993/05/10  02:47:43  ahd
+#         Include getuupc.cmd in installed OS/2 files
+#
+#         Revision 1.19  1993/04/19  13:15:52  ahd
+#         Begin version 1.11z
+#
+#         Revision 1.18  1993/04/17  13:40:13  ahd
+#         Fix win/32 header build
+#
+#         Revision 1.17  1993/04/16  13:11:15  dmwatt
+#         Build win/nt header file less often
+#
+#         Revision 1.16  1993/04/16  12:55:11  dmwatt
+#         Add support for special Win/NT version id header
+#
+#         Revision 1.15  1993/04/14  02:42:33  ahd
+#         Fix uucp target name for Windows/NT
+#
+#         Revision 1.14  1993/04/14  00:44:19  ahd
+#         Drop use of FMT from ZIP file build
+#         Add Windows/NT zip file build
+#         Add credit for Dave and Windows/NT Build
+#
+#         Revision 1.13  1993/04/10  21:24:27  dmwatt
+#         Add Windows/NT support
+#
+#    Revision 1.11  1993/04/05  12:25:39  ahd
+#    Clean up .def files
+#
+#    Revision 1.10  1993/04/05  04:31:27  ahd
+#    HPFS support (module definition files)
+#
+#    Revision 1.9  1993/04/04  04:55:31  ahd
+#    Add uunamep.exe to testp: build
+#
+#    Revision 1.8  1993/03/24  01:57:13  ahd
+#    rn support
+#
+#    Revision 1.7  1993/03/06  22:47:10  ahd
+#    Generic build, including rn.exe
+#
+#    Revision 1.6  1993/01/23  19:07:01  ahd
+#    Revise alias
+#
+#    Revision 1.5  1992/12/04  00:58:57  ahd
+#    Add sysalias to rmail build
+#
+#    Revision 1.5  1992/12/04  00:58:57  ahd
+#    Add sysalias to rmail build
+#
+#    Revision 1.4  1992/11/29  22:12:36  ahd
+#    Correct TMP directory to TEMP
+#    Add installation of OS/2 CMD files from RCS source directory
+#    Change copyright message
+#    Add build for TESTULIB.EXE
+#
+#    Revision 1.3  1992/11/27  14:37:55  ahd
+#    Add scrsize() to library build
+#
+#    Revision 1.2  1992/11/22  21:04:42  ahd
+#    Add normalize() to build
+
+.SUFFIXES: .c .asm .zip .obj
+
+# *--------------------------------------------------------------------*
+# *     Note:   By default, this file generates code for 80286         *
+# *             systems and above.  If you are generating              *
+# *             UUPC/extended for a 8088 system, remove the /G2        *
+# *             option from the CCOPT= line, below                     *
+# *--------------------------------------------------------------------*
+
+# *--------------------------------------------------------------------*
+# *   Our release number.  This is updated each time we ship it        *
+# *   out to some unsuspecting user, or sometimes when we do a         *
+# *   major fix even if we don't ship it out to the lusers.  ANY       *
+# *   VERSION NOT DONE ON kendra SHOULD BE TAGGED AS N.NNAm, WHERE     *
+# *   N.NNA IS THE NUMBER UUPC was shipped as, and 'm' any string      *
+# *   to indentify your special version.  Just upping the              *
+# *   distributed version number will confuse you AND me.              *
+# *--------------------------------------------------------------------*
+
+VERS = 1.12b
+
+# *--------------------------------------------------------------------*
+# *   The memory model to be built.  (Ignored by 32 bit compilers)     *
+# *--------------------------------------------------------------------*
+
+!IF "$(MODEL)" == ""
+MODEL   = M
+!ENDIF
+
+# *--------------------------------------------------------------------*
+# *                  Windows NT generic make include file              *
+# *--------------------------------------------------------------------*
+
+!IF "$(OS)" == "Windows_NT"
+!include <ntwin32.mak>
+!ENDIF
+
+# *--------------------------------------------------------------------*
+# *   Various directories.  The TEMP directory is not defined here;    *
+# *   rather we expect it to be defined as part of the user's          *
+# *   environment variables                                            *
+# *--------------------------------------------------------------------*
+
+MAIL    = $(SRCSLASH)mail
+UTIL    = $(SRCSLASH)util
+UUCP    = $(SRCSLASH)uucp
+RNEWS   = $(SRCSLASH)rnews
+UULIB   = $(SRCSLASH)lib
+TEST    = $(SRCSLASH)test
+UUCICO  = $(SRCSLASH)uucico
+
+!IF "$(OS)" == "Windows_NT"
+OBJ     = $(SRCSLASH)objmsnt
+!ELSE
+OBJ     = $(SRCSLASH)objms$(MODEL)
+!ENDIF
+
+SBR     = $(SRCSLASH)sbr
+PRODP   = \uupc\os2bin
+PRODR   = \uupc\bin
+PRODN   = \uupc\ntbin
+SCRIPTS = $(SRCSLASH)scripts
+
+# *--------------------------------------------------------------------*
+# *                        Various file names                          *
+# *--------------------------------------------------------------------*
+
+ZIPPREFIXX=UPC$(VERS:.=)
+ZIPPREFIX=$(SRCSLASH)$(VERS)\$(ZIPPREFIXX:C1=C)
+
+WNTZIPV1 = $(ZIPPREFIX)n1.zip
+WNTZIPV2 = $(ZIPPREFIX)n2.zip
+WNTZIPV3 = $(ZIPPREFIX)n3.zip
+OS2ZIPV2 = $(ZIPPREFIX)11.zip
+OS2ZIPV3 = $(ZIPPREFIX)12.zip
+OS2ZIPV4 = $(ZIPPREFIX)13.zip
+LIBCOMM  = $(TMP)\$(MODEL)uupcmsc.lib
+LIBNT    = $(TMP)\uupcnt.lib
+LIBOS2   = $(TMP)\$(MODEL)uupcos2.lib
+LIBDOS   = $(TMP)\$(MODEL)uupcdos.lib
+WORKFILE = $(TMP)\UUPCTEMP.TMP
+DEFFILE  = $(TMP)\UUPCOS2T.TMP
+
+# *--------------------------------------------------------------------*
+# *         Library names; season to taste and configuration           *
+# *--------------------------------------------------------------------*
+
+NTLIBS=libc.lib $(LIBCOMM) $(LIBNT) $(conlibs) ADVAPI32.LIB WSOCK32.LIB
+OS2LIBS=$(MODEL)libcep+$(LIBCOMM)+$(LIBOS2)+os2
+DOSLIBS=$(MODEL)libce+$(LIBCOMM)+$(LIBDOS)
+
+# *--------------------------------------------------------------------*
+# *        The names of various object files that we create.           *
+# *--------------------------------------------------------------------*
+
+TIMESTMP = $(OBJ)\timestmp.obj
+LIBLIST = $(OBJ)\active.obj \
+          $(OBJ)\arbmath.obj $(OBJ)\arpadate.obj $(OBJ)\bugout.obj\
+          $(OBJ)\chdir.obj $(OBJ)\checkptr.obj $(OBJ)\configur.obj\
+          $(OBJ)\catcher.obj $(OBJ)\dater.obj $(OBJ)\expath.obj\
+          $(OBJ)\export.obj $(OBJ)\filebkup.obj $(OBJ)\fopen.obj $(OBJ)\getargs.obj\
+          $(OBJ)\getopt.obj $(OBJ)\getseq.obj $(OBJ)\hostable.obj\
+          $(OBJ)\importng.obj $(OBJ)\dos2unix.obj  $(OBJ)\execute.obj \
+          $(OBJ)\hostatus.obj $(OBJ)\hostrset.obj $(OBJ)\usrcatch.obj \
+          $(OBJ)\kanjicnv.obj $(OBJ)\lock.obj $(OBJ)\logger.obj\
+          $(OBJ)\mkdir.obj $(OBJ)\mkfilenm.obj $(OBJ)\mkmbox.obj\
+          $(OBJ)\mktempnm.obj $(OBJ)\normaliz.obj $(OBJ)\printmsg.obj\
+          $(OBJ)\pushpop.obj $(OBJ)\readnext.obj $(OBJ)\rename.obj\
+          $(OBJ)\security.obj $(OBJ)\stater.obj $(OBJ)\strpool.obj\
+          $(OBJ)\usertabl.obj $(OBJ)\validcmd.obj $(TIMESTMP)
+
+LIBDOSLIST= $(OBJ)\ndir.obj $(OBJ)\printerr.obj $(OBJ)\ssleep.obj\
+            $(OBJ)\getdta.obj $(OBJ)\safeio.obj $(OBJ)\safeout.obj\
+            $(OBJ)\scrsize.obj $(OBJ)\trumpet.obj $(OBJ)\import.obj
+LIBOS2LIST= $(OBJ)\ndiros2.obj $(OBJ)\printerr.obj $(OBJ)\ssleep2.obj\
+            $(OBJ)\safeio2.obj $(OBJ)\safeout2.obj $(OBJ)\scrsize2.obj\
+            $(OBJ)\trumpet2.obj $(OBJ)\import2.obj  $(OBJ)\pos2err.obj
+
+LIBNTLIST=  $(OBJ)\ndirnt.obj $(OBJ)\printerr.obj $(OBJ)\ssleep.obj\
+            $(OBJ)\safeio.obj $(OBJ)\safeout.obj $(OBJ)\scrsiznt.obj\
+            $(OBJ)\setstdin.obj $(OBJ)\trumpet.obj $(OBJ)\import.obj\
+            $(OBJ)\pnterr.obj
+
+# *--------------------------------------------------------------------*
+# *             Object file lists for specific programs                *
+# *--------------------------------------------------------------------*
+
+MAILCOMOBJ = $(OBJ)\mail.obj $(OBJ)\address.obj $(OBJ)\mailblib.obj\
+          $(OBJ)\maillib.obj $(OBJ)\mailsend.obj \
+          $(OBJ)\alias.obj
+
+MAILROBJ  = $(MAILCOMOBJ) $(OBJ)\mlib.obj
+MAILPOBJ  = $(MAILCOMOBJ) $(OBJ)\mlib2.obj
+MAILNOBJ  = $(MAILCOMOBJ) $(OBJ)\mlib.obj
+
+UUCPOBJ = $(OBJ)\address.obj $(OBJ)\uucp.obj
+
+RNEWSOBJ = $(OBJ)\rnews.obj $(OBJ)\history.obj
+EXPIREOBJ = $(OBJ)\expire.obj
+
+RMAILOBJ = $(OBJ)\address.obj $(OBJ)\rmail.obj $(OBJ)\sysalias.obj \
+           $(OBJ)\deliver.obj
+
+UUCICOOBJ1 = $(OBJ)\checktim.obj $(OBJ)\dcp.obj $(OBJ)\dcpfpkt.obj \
+             $(OBJ)\dcpgpkt.obj $(OBJ)\dcplib.obj $(OBJ)\dcpstats.obj\
+             $(OBJ)\dcpxfer.obj
+UUCICOOBJ2 = $(OBJ)\modem.obj $(OBJ)\script.obj $(OBJ)\uucico.obj
+UUCICOPOBJ3 = $(OBJ)\dcpsys2.obj $(OBJ)\dcptpkt.obj \
+              $(OBJ)\nbstime2.obj $(OBJ)\ulibos2.obj\
+              $(OBJ)\commlib2.obj $(OBJ)\ulibnmp.obj\
+              $(OBJ)\prtyos2.obj $(OBJ)\suspend2.obj
+UUCICOROBJ3 = $(OBJ)\dcpsys.obj \
+              $(OBJ)\nbstime.obj $(OBJ)\ulib.obj $(OBJ)\ulibfs.obj  \
+              $(OBJ)\ulib14.obj $(OBJ)\fossil.obj  \
+              $(OBJ)\commlib.obj $(OBJ)\comm.obj $(OBJ)\suspend.obj
+UUCICONOBJ3 = $(OBJ)\dcpsys.obj \
+              $(OBJ)\nbstime.obj $(OBJ)\ulibnt.obj $(OBJ)\ulibip.obj\
+              $(OBJ)\dcptpkt.obj $(OBJ)\commlib.obj $(OBJ)\suspend.obj\
+              $(OBJ)\prtynt.obj $(OBJ)\pwserr.obj
+
+RNOBJ1=$(OBJ)\addng.obj $(OBJ)\art.obj $(OBJ)\artio.obj $(OBJ)\artsrch.obj\
+       $(OBJ)\backpage.obj $(OBJ)\bits.obj $(OBJ)\cheat.obj $(OBJ)\final.obj
+RNOBJ2=$(OBJ)\head.obj $(OBJ)\help.obj $(OBJ)\init.obj $(OBJ)\intrp.obj\
+       $(OBJ)\kfile.obj $(OBJ)\last.obj $(OBJ)\ng.obj $(OBJ)\ngdata.obj
+RNOBJ3=$(OBJ)\ngsrch.obj $(OBJ)\ngstuff.obj $(OBJ)\only.obj $(OBJ)\rcln.obj\
+       $(OBJ)\rcstuff.obj $(OBJ)\respond.obj $(OBJ)\rn.obj $(OBJ)\search.obj\
+       $(OBJ)\sw.obj $(OBJ)\term.obj $(OBJ)\util.obj $(OBJ)\uudecode.obj \
+       $(OBJ)\rnpclib.obj
+RNOBJ=$(RNOBJ1) $(RNOBJ2) $(RNOBJ3)
+
+NEWSETUPOBJ=$(OBJ)\newsetup.obj $(OBJ)\rnlib.obj
+
+UUSUBOBJ = $(OBJ)\uusub.obj
+
+UUSTATOBJ = $(OBJ)\uustat.obj
+
+UUXQTOBJ = $(OBJ)\uuxqt.obj
+
+UUXOBJ = $(OBJ)\uux.obj
+
+POLLNOBJ  = $(OBJ)\uupoll.obj
+POLLPOBJ  = $(OBJ)\uupoll2.obj
+POLLROBJ  = $(OBJ)\uupoll.obj
+
+# *--------------------------------------------------------------------*
+# *      Lists of programs to built for various pseudo targets         *
+# *--------------------------------------------------------------------*
+
+EXECR   = mailr.exe rmailr.exe rnewsr.exe\
+          uupollr.exe uucicor.exe uucpr.exe\
+          uusubr.exe uustatr.exe uuxqtr.exe uuxr.exe
+EXECP   = mailp.exe rmailp.exe rnewsp.exe\
+          uupollp.exe uucicop.exe uucpp.exe\
+          uusubp.exe uustatp.exe uuxqtp.exe uuxp.exe uuportp.exe
+EXECN   = mailn.exe rmailn.exe rnewsn.exe\
+          uupolln.exe uucicon.exe uucpn.exe\
+          uusubn.exe uustatn.exe uuxqtn.exe uuxn.exe
+
+
+ICONS   = $(PRODP)\mail.ico $(PRODP)\uucico.ico
+INSTALLP = $(INSTALLP2) $(INSTALLP3) $(INSTALLP4) $(INSTALLPS)
+INSTALLR = $(PRODR)\mail.exe $(PRODR)\rmail.exe $(PRODR)\rnews.exe\
+          $(PRODR)\uupoll.exe $(PRODR)\uucico.exe $(PRODR)\uucp.exe\
+          $(PRODR)\uusub.exe $(PRODR)\uuxqt.exe $(PRODR)\uux.exe\
+          $(PRODR)\uustat.exe  $(PRODR)\rn.exe $(PRODR)\newsetup.exe
+
+INSTALLP2= $(PRODP)\mail.exe $(PRODP)\rmail.exe $(PRODP)\uucico.exe\
+          $(PRODP)\uuxqt.exe
+INSTALLP3= $(PRODP)\uucp.exe $(PRODP)\uuname.exe $(PRODP)\uupoll.exe\
+          $(PRODP)\uustat.exe $(PRODP)\uusub.exe $(PRODP)\uuport.exe\
+          $(PRODP)\uux.exe $(FMT) $(PRODP)\gensig.exe $(PRODP)\novrstrk.exe \
+          $(PRODP)\su.cmd $(PRODP)\uuio.cmd $(PRODP)\uuclean.cmd\
+          $(PRODP)\waiting.cmd $(PRODP)\mailchek.cmd $(PRODP)\getuupc.cmd
+INSTALLP4= $(PRODP)\rnews.exe $(PRODP)\expire.exe
+#         $(PRODP)\rn.exe $(PRODP)\newsetup.exe
+
+INSTALLN2= $(PRODN)\mail.exe $(PRODN)\rmail.exe $(PRODN)\uucico.exe\
+          $(PRODN)\uuxqt.exe
+INSTALLN3= $(PRODN)\uucp.exe $(PRODN)\uuname.exe $(PRODN)\uupoll.exe\
+          $(PRODN)\uustat.exe $(PRODN)\uusub.exe\
+          $(PRODN)\uux.exe $(FMT) $(PRODN)\gensig.exe $(PRODN)\novrstrk.exe \
+          $(PRODN)\su.bat $(PRODN)\uuio.bat $(PRODN)\uuclean.bat\
+          $(PRODN)\waiting.bat
+INSTALLN4= $(PRODN)\rnews.exe $(PRODN)\expire.exe
+#         $(PRODN)\rn.exe $(PRODN)\newsetup.exe
+INSTALLN  = $(INSTALLN1) $(INSTALLN2) $(INSTALLN3) $(INSTALLN4)
+
+# *--------------------------------------------------------------------*
+# *   Source browser files; because of space limitations, these        *
+# *   are not always generated unless you change the C compiler        *
+# *   options.                                                         *
+# *--------------------------------------------------------------------*
+
+# *--------------------------------------------------------------------*
+# *     This needs to be expanded too *all* the OBJ files ... but      *
+# *     not today, as the Wonderworks doesn't use it.                  *
+# *--------------------------------------------------------------------*
+SBRS = $(LIBDOSLIST:obj=sbr)
+
+# *--------------------------------------------------------------------*
+# *                   And, of course, our makefile                     *
+# *--------------------------------------------------------------------*
+
+MAKEFILE = $(SRCSLASH)mscmake
+README=    docs\00readme.now
+
+# *--------------------------------------------------------------------*
+# *      Define the linker used and the options related to it.         *
+# *--------------------------------------------------------------------*
+
+#       Could use link386 under OS/2 2.0, but doesn't work if cross
+#       compiled to older OS/2 1.3 system.
+
+!IF "$(OS)" == "Windows_NT"
+LINKER = $(link)
+!ELSE
+LINKER  = link
+!ENDIF
+
+LINKPOPT = /exepack /far /noignorecase /nod /batch
+
+LINKNOPT = $(conflags) $(ldebug)
+
+#       No /exepack under DOS, DOS 5 can be confused by it.
+LINKROPT = /batch /far /noignorecase /stack:20000
+
+# *--------------------------------------------------------------------*
+# *                     Microsoft Assembler name                       *
+# *--------------------------------------------------------------------*
+
+MASM    = masm.exe
+
+#MASMOPTS = /DUUPC /DDEBUG /n /v /t /z /W2 /ZD /Mx
+MASMOPTS = /DUUPC /n /v /t /z /W2 /ZI /ZD /Mx
+
+# *--------------------------------------------------------------------*
+# *                      C compiler and options                        *
+# *--------------------------------------------------------------------*
+
+# *--------------------------------------------------------------------*
+# *   Add /Zi for Codeview debugging information, and change the       *
+# *   /exepack option to /codeview on the linker options (above).      *
+# *                                                                    *
+# *   Add /FR$(SBR)\$(@B).sbr to generate source browser files.        *
+# *   (I had to delete the this because of space considerations        *
+# *   on kendra.)                                                      *
+# *                                                                    *
+# *   Also, delete /Ocegilt (optimizer options) and /Gs (no stack      *
+# *   overflow checking) if debugging and having problems.  Note       *
+# *   stack overflow *is* checked in printmsg(), which is called       *
+# *   by most if not all deep routines.                                *
+# *                                                                    *
+# *   Delete the /G2 if building for an 8086 based system.             *
+# *--------------------------------------------------------------------*
+
+!IF "$(OS)" == "Windows_NT"
+CC      = cl
+# CC is defined in ntwin32.mak, so no need for an ELSE clause here
+!ENDIF
+
+
+!IF "$(OS)" == "Windows_NT"
+CCOPT   = $(cflags) $(cvars) -I$(UULIB) /Fo$@
+
+{$(UULIB)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(MAIL)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(RN)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(RNEWS)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(TEST)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UUCICO)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UUCP)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UTIL)}.c.obj:
+        $(CC) $(CCOPT) $<
+
+!ELSE
+
+#       Use this CCOPT for debugging; the /FR is optional.
+#CCOPT   = /I$(UULIB) /A$(MODEL) /c /W4 /nologo /G2 /Fo$@ /Od /FR$(SBR)\$(@B).sbr /Zi /Or /DUDEBUG /DFAMILY
+
+#       Use this CCOPT for productiom (/DFAMILY for OS/2 only)
+CCOPT   = /I$(UULIB) /A$(MODEL) /c /W4 /nologo /G2 /Fo$@ /Ocegilt
+
+{$(UULIB)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(MAIL)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(RN)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) /W3 $<
+
+{$(RNEWS)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(TEST)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UUCICO)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UUCP)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+
+{$(UTIL)}.c{$(OBJ)}.obj:
+        $(CC) $(CCOPT) $<
+!ENDIF
+
+# *--------------------------------------------------------------------*
+# *            ZIP, for creating the distributed archive               *
+# *--------------------------------------------------------------------*
+
+ZIP     = zip
+ZIPOPT1 = -o -9 -u $@ -@
+ZIPOPT2 = -j $(ZIPOPT1)
+
+# *--------------------------------------------------------------------*
+# *                Begin rules for building modules.                   *
+# *--------------------------------------------------------------------*
+
+# *--------------------------------------------------------------------*
+# *        The first definition is the one built by default.           *
+# *--------------------------------------------------------------------*
+
+# *--------------------------------------------------------------------*
+# *   testp builds the basic OS/2 UUPC modules in the source           *
+# *   directory.                                                       *
+# *--------------------------------------------------------------------*
+
+!IF "$(OS)" == "Windows_NT"
+testN:  $(OBJ) mailn.exe rmailn.exe uucicon.exe\
+        uupolln.exe uucpn.exe uusubn.exe uustatn.exe uuxn.exe uuxqtn.exe\
+        uunamen.exe gensign.exe expiren.exe rnewsn.exe
+#       rnn.exe newsetpn.exe
+        - del $(LIBCOMM)
+        - del $(LIBOS2)
+!ELSE
+testP:  $(OBJ) mailp.exe rmailp.exe uucicop.exe\
+        uupollp.exe uucpp.exe uusubp.exe uustatp.exe uuxp.exe uuxqtp.exe\
+        uunamep.exe uuportp.exe gensigp.exe expirep.exe rnewsp.exe
+#       rnp.exe newsetpp.exe
+        - del $(LIBCOMM)
+        - del $(LIBOS2)
+!ENDIF
+
+# *--------------------------------------------------------------------*
+# *   testr builds the basic MS-DOS UUPC modules in the source         *
+# *   directory.                                                       *
+# *--------------------------------------------------------------------*
+
+testR:  $(OBJ) expirer.exe mailr.exe rmailr.exe rnewsr.exe uucicor.exe\
+        uupollr.exe uucpr.exe uusubr.exe uustatr.exe uuxr.exe uuxqtr.exe \
+        gensigr.exe
+#       rnr.exe newsetpr.exe
+        - del $(LIBCOMM)
+        - del $(LIBDOS)
+
+# *--------------------------------------------------------------------*
+# *   Prod build the basic modules and then moves them to $(PROD)      *
+# *--------------------------------------------------------------------*
+
+prodn:  $(OBJ) $(INSTALLN) regen
+        - del $(LIBCOMM)
+        - del $(LIBNT)
+
+
+prodp:  $(OBJ) $(INSTALLP) regen
+        - del $(LIBCOMM)
+        - del $(LIBOS2)
+
+
+prodr:  $(OBJ) $(INSTALLR)
+        - del $(LIBCOMM)
+        - del $(LIBOS2)
+
+installn:  $(OBJ) $(INSTALLN) $(WNTZIPV1) $(WNTZIPV2)  $(WNTZIPV3)
+        - del $(LIBCOMM)
+        - del $(LIBNT)
+
+installp:  $(OBJ) $(OS2ZIPV2) $(OS2ZIPV3)  $(OS2ZIPV4)
+        - del $(LIBCOMM)
+        - del $(LIBOS2)
+
+installr:  prodr
+
+!IF "$(OS)" == "Windows_NT"
+install:        zip
+
+zip:
+        nmake -f $(MAKEFILE) NODEBUG=1 installn
+!ELSE
+zip:    installp
+!ENDIF
+
+# *--------------------------------------------------------------------*
+# *          Do a purge of various temporary output files.             *
+# *--------------------------------------------------------------------*
+
+clean:  xclean
+        - del $(SRCSLASH)*.bak
+        - del *.map
+        - del $(WORKFILE)
+
+# *--------------------------------------------------------------------*
+# *      Do a clean of just executable files and related files.        *
+# *--------------------------------------------------------------------*
+
+xclean:
+        - del $(OBJ)\*.obj
+        - del $(OBJ)\*.exe
+        - del $(TMP)\*.lib
+        - del $(SRCSLASH)*.obj
+        - del $(SRCSLASH)*.exe
+        - del $(SBR)\*.sbr
+
+# *--------------------------------------------------------------------*
+# *             Read mode (DOS) production executables                 *
+# *--------------------------------------------------------------------*
+
+$(PRODR)\expire.exe: expirer.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\mail.exe: mailr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\rmail.exe: rmailr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\rnews.exe: rnewsr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uucp.exe: uucpr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uucico.exe: uucicor.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uupoll.exe: uupollr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uusub.exe: uusubr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uustat.exe: uustatr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uuxqt.exe: uuxqtr.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\uux.exe: uuxr.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\rn.exe: rnp.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\rn.exe: rnr.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\newsetup.exe: newsetpp.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\newsetup.exe: newsetpr.exe
+        - del $@
+        move $? $@
+
+# *--------------------------------------------------------------------*
+# *             Protected mode (OS/2) production modules               *
+# *--------------------------------------------------------------------*
+
+$(PRODP)\expire.exe: expirep.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\fmt.exe: fmtp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\gensig.exe: gensigp.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\gensig.exe: gensigr.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\mail.exe: mailp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\novrstrk.exe: novrstrp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\rmail.exe: rmailp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\rnews.exe: rnewsp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uucp.exe: uucpp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uucico.exe: uucicop.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uupoll.exe: uupollp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uuport.exe: uuportp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uusub.exe: uusubp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uustat.exe: uustatp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uuxqt.exe: uuxqtp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uux.exe: uuxp.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uuname.exe: uunamep.exe
+        - del $@
+        move $? $@
+
+$(PRODP)\uuio.cmd: $(SCRIPTS)\uuio.cmd
+        copy $? $@
+
+$(PRODP)\waiting.cmd: $(SCRIPTS)\waiting.cmd
+        copy $? $@
+
+$(PRODP)\su.cmd: $(SCRIPTS)\su.cmd
+        copy $? $@
+
+$(PRODP)\mailchek.cmd: $(SCRIPTS)\mailchek.cmd
+        copy $? $@
+
+$(PRODP)\uuclean.cmd: $(SCRIPTS)\uuclean.cmd
+        copy $? $@
+
+$(PRODP)\getuupc.cmd: $(SCRIPTS)\getuupc.cmd
+        copy $? $@
+
+# *--------------------------------------------------------------------*
+# *       Protected mode (Windows/NT) production modules               *
+# *--------------------------------------------------------------------*
+
+$(PRODN)\expire.exe: expiren.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\fmt.exe: fmtn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\gensig.exe: gensign.exe
+        - del $@
+        move $? $@
+
+$(PRODR)\gensig.exe: gensigr.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\mail.exe: mailn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\novrstrk.exe: novrstrn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\rmail.exe: rmailn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\rnews.exe: rnewsn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uucp.exe: uucpn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uucico.exe: uucicon.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uupoll.exe: uupolln.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uusub.exe: uusubn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uustat.exe: uustatn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uuxqt.exe: uuxqtn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uux.exe: uuxn.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uuname.exe: uunamen.exe
+        - del $@
+        move $? $@
+
+$(PRODN)\uuio.bat: $(SCRIPTS)\uuio.bat
+        copy $? $@
+
+$(PRODN)\waiting.bat: $(SCRIPTS)\waiting.bat
+        copy $? $@
+
+$(PRODN)\su.bat: $(SCRIPTS)\su.bat
+        copy $? $@
+
+$(PRODN)\mailchek.bat: $(SCRIPTS)\mailchek.bat
+        copy $? $@
+
+$(PRODN)\uuclean.bat: $(SCRIPTS)\uuclean.bat
+        copy $? $@
+
+# *--------------------------------------------------------------------*
+# *               The commands to actually link files                  *
+# *--------------------------------------------------------------------*
+
+expiren.exe: $(EXPIREOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(EXPIREOBJ) $(NTLIBS)
+
+expirep.exe: $(DEFFILE) $(EXPIREOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(EXPIREOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+expirer.exe:     $(EXPIREOBJ)  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(EXPIREOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+fmtn.exe: $(OBJ)\fmt.obj $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(OBJ)\fmt.obj $(NTLIBS)
+
+fmtp.exe: $(DEFFILE) $(OBJ)\fmt.obj $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(OBJ)\fmt.obj
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+gensign.exe: $(OBJ)\gensig.obj $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(OBJ)\gensig.obj $(NTLIBS)
+
+gensigp.exe:     $(DEFFILE) $(OBJ)\gensig.obj $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(OBJ)\gensig.obj
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+gensigr.exe:     $(OBJ)\gensig.obj $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(OBJ)\gensig.obj
+$@,NUL.,$(DOSLIBS);
+<<
+
+novrstrn.exe: $(OBJ)\novrstrk.obj $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(OBJ)\novrstrk.obj $(NTLIBS)
+
+novrstrp.exe:     $(DEFFILE) $(OBJ)\novrstrk.obj $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(OBJ)\novrstrk.obj
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+mailn.exe: $(MAILNOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(NTLIBS) $(MAILNOBJ)
+
+mailp.exe:         $(DEFFILE) $(MAILPOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(MAILPOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+mailr.exe:     $(MAILROBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(MAILROBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+newsetpn.exe: $(NEWSETUPOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(NEWSETUPOBJ) $(NTLIBS)
+
+newsetpp.exe:     $(DEFFILE) $(NEWSETUPOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(NEWSETUPOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+newsetpr.exe:        $(NEWSETUPOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(NEWSETUPOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+rnn.exe: $(RNOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(RNOBJ1) $(RNOBJ2) $(RNOBJ3) $(NTLIBS)
+
+rnp.exe:        $(DEFFILE) $(RNOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(RNOBJ1)+
+$(RNOBJ2)+
+$(RNOBJ3)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+rnr.exe:        $(RNOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(RNOBJ1)+
+$(RNOBJ2)+
+$(RNOBJ3)
+$@,NUL.,$(DOSLIBS);
+<<
+
+rmailn.exe: $(RMAILOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(RMAILOBJ) $(NTLIBS)
+
+rmailp.exe:     $(DEFFILE) $(RMAILOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(RMAILOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+rmailr.exe:     $(RMAILOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(RMAILOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+rnewsn.exe: $(RNEWSOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(RNEWSOBJ) $(NTLIBS)
+
+rnewsp.exe:     $(DEFFILE) $(RNEWSOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(RNEWSOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+rnewsr.exe:     $(RNEWSOBJ)  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(RNEWSOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uucicon.exe: $(UUCICOOBJ1) $(UUCICOOBJ2) $(UUCICONOBJ3) \
+                  $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(NTLIBS) $(UUCICOOBJ1) $(UUCICOOBJ2) \
+           $(UUCICONOBJ3)
+
+uucicop.exe:      $(DEFFILE) $(UUCICOOBJ1) $(UUCICOOBJ2) $(UUCICOPOBJ3) \
+                  $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUCICOOBJ1)+
+$(UUCICOOBJ2)+
+$(UUCICOPOBJ3)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uucicor.exe:     $(UUCICOOBJ1) $(UUCICOOBJ2) $(UUCICOROBJ3)\
+                  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUCICOOBJ1)+
+$(UUCICOOBJ2)+
+$(UUCICOROBJ3)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uucpn.exe: $(UUCPOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(UUCPOBJ) $(NTLIBS)
+
+uucpp.exe:     $(DEFFILE) $(UUCPOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUCPOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uucpr.exe:     $(UUCPOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUCPOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uunamen.exe: $(OBJ)\uuname.obj $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(OBJ)\uuname.obj $(NTLIBS)
+
+uunamep.exe:     $(DEFFILE) $(OBJ)\uuname.obj $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(OBJ)\uuname.obj
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uupolln.exe: $(POLLNOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(POLLNOBJ) $(NTLIBS)
+
+uupollp.exe:     $(DEFFILE)  $(POLLPOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(POLLPOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uupollr.exe:      $(POLLROBJ)  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(POLLROBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uuportp.exe:     $(DEFFILE)  $(OBJ)/uuport.obj $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(OBJ)\uuport.obj
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uustatn.exe: $(UUSTATOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(UUSTATOBJ) $(NTLIBS)
+
+uustatp.exe:     $(DEFFILE)  $(UUSTATOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUSTATOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uustatr.exe:      $(UUSTATOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUSTATOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uusubn.exe: $(UUSUBOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(UUSUBOBJ) $(NTLIBS)
+
+uusubp.exe:      $(DEFFILE) $(UUSUBOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUSUBOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uusubr.exe:      $(UUSUBOBJ)  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUSUBOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uuxn.exe: $(UUXOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(UUXOBJ) $(NTLIBS)
+
+uuxp.exe:      $(DEFFILE) $(UUXOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUXOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uuxr.exe:      $(UUXOBJ)  $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUXOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+uuxqtn.exe: $(UUXQTOBJ) $(LIBCOMM) $(LIBNT)
+        $(LINKER) $(LINKNOPT) /OUT:$@ $(UUXQTOBJ) $(NTLIBS)
+
+uuxqtp.exe:      $(DEFFILE) $(UUXQTOBJ) $(LIBCOMM) $(LIBOS2)
+        $(LINKER) $(LINKPOPT) @<<
+$(UUXQTOBJ)
+$@,NUL.,$(OS2LIBS)
+$(DEFFILE)
+<<
+
+uuxqtr.exe:      $(UUXQTOBJ) $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(UUXQTOBJ)
+$@,NUL.,$(DOSLIBS);
+<<
+
+testulib.exe:   $(OBJ)\testulib.obj $(OBJ)\ulib.obj $(OBJ)\comm.obj \
+                $(LIBCOMM) $(LIBDOS)
+        $(LINKER) $(LINKROPT) @<<
+$(OBJ)\testulib.obj $(OBJ)\ulib.obj $(OBJ)\comm.obj
+$@,NUL.,$(DOSLIBS);
+<<
+
+# *--------------------------------------------------------------------*
+# *                         Definition files                           *
+# *--------------------------------------------------------------------*
+
+$(DEFFILE):     $(MAKEFILE)
+       copy << $@
+name windowcompat newfiles
+Description 'UUPC/extended $(VERS), Changes Copyright (c) 1989-1993 Kendra Electronic Wonderworks, All Rights Reserved'
+stacksize 8192
+exetype OS2
+<<
+
+# *--------------------------------------------------------------------*
+# *                        Clean up after rn                           *
+# *--------------------------------------------------------------------*
+
+rn-clean:
+                - del $(RNOBJ)
+                - del rnp.exe
+
+# *--------------------------------------------------------------------*
+# *                          The zip files                             *
+# *--------------------------------------------------------------------*
+
+$(OS2ZIPV2):  $(INSTALLP2) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) OS/2 executables (1 of 3)
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+$(OS2ZIPV3):  $(INSTALLP3) $(INSTALLPS) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) OS/2 executables (2 of 3)
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+$(OS2ZIPV4):  $(INSTALLP4) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) OS/2 executables (3 of 3)
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+# *--------------------------------------------------------------------*
+# *                       Windows/NT ZIP files                         *
+# *--------------------------------------------------------------------*
+
+$(WNTZIPV1):  $(INSTALLN2) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) Win NT executables (1 of 3)
+
+Special credit to David M. Watt for performing the Windows NT port.
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+$(WNTZIPV2):  $(INSTALLN3) $(INSTALLNS) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) Win NT exe
+
+Special credit to David M. Watt for performing the Windows NT port.
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+$(WNTZIPV3):  $(INSTALLN4) $(README)
+       - mkdir $(SRCSLASH)$(VERS)
+       -12 $(ZIP) $(ZIPOPT2) < <<
+       $(?: =^
+       )
+<<
+       $(ZIP) -z $@  < <<
+Kendra Electronic Wonderworks: UUPC/extended $(VERS) Win NT executables (3 of 3)
+
+Special credit to David M. Watt for performing the Windows NT port.
+
+Changes and Compilation Copyright (c) 1989-1993 by Kendra Electronic
+Wonderworks.  May be distributed freely if original source and documentation
+files are included.  Please direct all questions on UUPC/extended to
+help@kew.com.
+<<
+
+# *--------------------------------------------------------------------*
+# *                    Build the object libraries                      *
+# *--------------------------------------------------------------------*
+
+!IF "$(OS)" == "Windows_NT"
+
+$(LIBCOMM): $(LIBLIST)
+         lib32 /out:$@ $(LIBLIST)
+
+!ELSE
+$(LIBCOMM): $(LIBLIST)
+        lib /noignorecase $@ @<<
+-+$(?: =&^
+-+)
+nul;
+<<
+
+!ENDIF
+
+$(LIBDOS): $(LIBDOSLIST)
+        lib /noignorecase $@ @<<
+-+$(?: =&^
+-+)
+nul;
+<<
+
+$(LIBOS2): $(LIBOS2LIST)
+        lib /noignorecase $@ @<<
+-+$(?: =&^
+-+)
+nul;
+<<
+
+$(LIBNT): $(LIBNTLIST)
+        lib32 /out:$@ $(LIBNTLIST)
+
+# *--------------------------------------------------------------------*
+# *                Compile the various object files.                   *
+# *--------------------------------------------------------------------*
+
+$(OBJ)\commlib2.obj:  $(UUCICO)\commlib.c $(UUCICO)\commlib.h $(UULIB)\lib.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UUCICO)\$(@B:2=).c
+
+$(OBJ)\dcpsys2.obj:  $(UUCICO)\dcpsys.c $(UUCICO)\dcpsys.h $(UULIB)\lib.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UUCICO)\$(@B:2=).c
+
+$(OBJ)\mlib2.obj: $(MAIL)\mlib.c $(UULIB)\lib.h $(UULIB)\hlib.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(MAIL)\$(@B:2=).c
+
+$(OBJ)\import2.obj: $(UULIB)\import.c $(UULIB)\lib.h $(UULIB)\import.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UULIB)\$(@B:2=).c
+
+$(OBJ)\nbstime2.obj:  $(UUCICO)\nbstime.c $(UULIB)\lib.h $(UULIB)\arpadate.h\
+        $(UUCICO)\dcp.h $(UUCICO)\dcpsys.h $(UULIB)\hostable.h\
+        $(UUCICO)\nbstime.h $(UUCICO)\script.h $(UULIB)\security.h\
+        $(UUCICO)\ulib.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UUCICO)\$(@B:2=).c
+
+$(OBJ)\safeio2.obj: $(UULIB)\safeio.c $(UULIB)\lib.h $(UULIB)\safeio.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UULIB)\$(@B:2=).c
+
+$(OBJ)\safeout2.obj: $(UULIB)\safeout.c $(UULIB)\lib.h $(UULIB)\safeio.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UULIB)\$(@B:2=).c
+
+$(OBJ)\ssleep2.obj: $(UULIB)\ssleep.c $(UULIB)\lib.h $(UULIB)\ssleep.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UULIB)\$(@B:2=).c
+
+$(OBJ)\trumpet2.obj: $(UULIB)\trumpet.c $(UULIB)\lib.h $(UULIB)\trumpet.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UULIB)\$(@B:2=).c
+
+# *--------------------------------------------------------------------*
+# *     The timestamp module has a reference to this MAKEFILE,         *
+# *     which insures whenever we change the version number the        *
+# *     time stamp gets re-generated.                                  *
+# *--------------------------------------------------------------------*
+
+$(TIMESTMP): $(UULIB)\timestmp.c $(UULIB)\lib.h $(UULIB)\timestmp.h\
+        $(UULIB)\win32ver.h \
+        $(MAKEFILE) $(REGEN)
+        $(CC) $(CCOPT) $(UULIB)\$(@B).c
+
+$(UULIB)\win32ver.h: $(MAKEFILE) $(REGEN)
+        copy << $@
+/*--------------------------------------------------------------------*/
+/*         DO NOT EDIT -- AUTOMATICALLY GENERATED BY MAKEFILE         */
+/*--------------------------------------------------------------------*/
+
+#define UUPCV "$(VERS)"         // UUPC/extended version number
+<<
+
+$(OBJ)\uupoll2.obj: $(UTIL)\uupoll.c $(UULIB)\getopt.h $(UULIB)\lib.h\
+        $(UULIB)\timestmp.h $(UULIB)\ssleep.h $(UULIB)\arpadate.h
+        $(CC) $(CCOPT) /DFAMILYAPI $(UTIL)\$(@B:2=).c
+
+# *--------------------------------------------------------------------*
+# *     Force a regeneration of the time stamp/version module.         *
+# *--------------------------------------------------------------------*
+
+regen:  $(UULIB)\timestmp.c
+        - del $(OBJ)\timestmp.obj
+
+# *--------------------------------------------------------------------*
+# *   This is a special case, the assembler module which handles       *
+# *   our I/O to the serial port for the DOS version.                  *
+# *--------------------------------------------------------------------*
+
+$(OBJ)\comm.obj: $(UUCICO)\comm.asm
+        $(MASM) $(MASMOPTS) $(UUCICO)\$(@B) ,$@;
+
+# *--------------------------------------------------------------------*
+# *         Generate the source browser database for the PWB           *
+# *--------------------------------------------------------------------*
+
+$(MAKEFILE).bsc: $(SBRS)
+        pwbrmake @<<
+/o $(MAKEFILE).bsc $(SBRS)
+<<
+
+$(OBJ):
+        - mkdir $(OBJ)
